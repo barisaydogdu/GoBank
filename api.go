@@ -9,40 +9,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// Bir HTTP yanıtını JSON formatında gönderir.Bir http yanıtına JSON veri ekler ve uygun başlıkları ayarlar.
-func WriteJson(w http.ResponseWriter, status int, v any) error {
-	w.WriteHeader(status)
-	//Header'a content-type ekler, Yanıtın JSON formatında olduğunu belirtir ve istemcinin bu yanıtı JSOn olarak işlemesini sağlar
-	w.Header().Set("Content-Type", "application/json")
-	//NewEncoder: Bir JSON encoder(kodlayıcı) oluşturur.Bu encoder, w üzerine JSON verisini yazacaktır
-	//Encode:v değerini JSON formatına dönüştürür ve bu JSON verisini HTTP yanıtına yazar
-	return json.NewEncoder(w).Encode(v)
-}
-
-type apiFunc func(http.ResponseWriter, *http.Request) error
-
-type ApiError struct {
-	Error string
-}
-
-// HandlerFunc: Http işlevlerinin işlenmesini sağlayan bir türdür.
-func makeHttpHandleFunc(f apiFunc) http.HandlerFunc {
-	//Gelen HTTP isteklerini işleyen anonim bir işlevdir.
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := f(w, r); err != nil {
-			WriteJson(w, http.StatusBadRequest, ApiError{Error: err.Error()})
-		}
-	}
-}
-
 type APIServer struct {
 	listenAddr string
+	store      Stroge
 }
 
-func NewAPIServer(listenAddr string) *APIServer {
+func NewAPIServer(listenAddr string, store Stroge) *APIServer {
 	return &APIServer{
 		//Fonksiyondaki listenAddr'yi listenAddr ile doldurur.
 		listenAddr: listenAddr,
+		store:      store,
 	}
 }
 func (s *APIServer) Run() {
@@ -80,7 +56,17 @@ func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 	//account := NewAccount("Baris", "Aydoğdu")
 	return WriteJson(w, http.StatusOK, &Account{})
 }
+
+// Eğer json verileri firstName ve lastName alanlarına sahipse bu alanlar
+// FirstName ve LastName alanlarını doldurur.
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
+	//CreateAccountRequest struct'inin bellekteki adresini tutan bir pointer
+	createAccountReq := new(CreateAccountRequest)
+	//r.Bodydaki JSON verisini okumaya hazır hale getirir.
+	//Decode:Gelen JSON verileri CreateAccountRequest türündeki yapıya dönüştürür.
+	if err := json.NewDecoder(r.Body).Decode(createAccountReq); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -90,4 +76,30 @@ func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
 	return nil
 
+}
+
+// Bir HTTP yanıtını JSON formatında gönderir.Bir http yanıtına JSON veri ekler ve uygun başlıkları ayarlar.
+func WriteJson(w http.ResponseWriter, status int, v any) error {
+	//Header'a content-type ekler, Yanıtın JSON formatında olduğunu belirtir ve istemcinin bu yanıtı JSOn olarak işlemesini sağlar
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
+	//NewEncoder: Bir JSON encoder(kodlayıcı) oluşturur.Bu encoder, w üzerine JSON verisini yazacaktır
+	//Encode:v değerini JSON formatına dönüştürür ve bu JSON verisini HTTP yanıtına yazar
+	return json.NewEncoder(w).Encode(v)
+}
+
+type apiFunc func(http.ResponseWriter, *http.Request) error
+
+type ApiError struct {
+	Error string
+}
+
+// HandlerFunc: Http işlevlerinin işlenmesini sağlayan bir türdür.
+func makeHttpHandleFunc(f apiFunc) http.HandlerFunc {
+	//Gelen HTTP isteklerini işleyen anonim bir işlevdir.
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := f(w, r); err != nil {
+			WriteJson(w, http.StatusBadRequest, ApiError{Error: err.Error()})
+		}
+	}
 }
