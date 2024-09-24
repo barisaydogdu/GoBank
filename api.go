@@ -24,7 +24,7 @@ func NewAPIServer(listenAddr string, store Stroge) *APIServer {
 func (s *APIServer) Run() {
 	router := mux.NewRouter()
 	router.HandleFunc("/account", makeHttpHandleFunc(s.handleAccount))
-	router.HandleFunc("/account/{id}", makeHttpHandleFunc(s.handleGetAccount))
+	router.HandleFunc("/account/{id}", makeHttpHandleFunc(s.handleGetAccountByID))
 	log.Println("JSON API server running on board", s.listenAddr)
 	http.ListenAndServe(s.listenAddr, router)
 }
@@ -45,9 +45,18 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("method not allowed %s", r.Method)
 }
 
+// Get/account
+func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
+	accounts, err := s.store.GetAccounts()
+	if err != nil {
+		return err
+	}
+	return WriteJson(w, http.StatusOK, accounts)
+}
+
 // http.ResponseWriter : Http yanıtı oluşturmak için kullanılır.
 // r. *http.Request: Gelen HTTP isteğinin detaylarını içerir
-func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
 	//Http isteklerini URL parametreleri (path variables) almak için kullanılan kod account/{id}gibi işlemeri yapar.
 	id := mux.Vars(r)["id"]
 
@@ -67,7 +76,12 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(createAccountReq); err != nil {
 		return err
 	}
-	return nil
+
+	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+	if err := s.store.CreateAccount(account); err != nil {
+		return err
+	}
+	return WriteJson(w, http.StatusOK, account)
 }
 
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
